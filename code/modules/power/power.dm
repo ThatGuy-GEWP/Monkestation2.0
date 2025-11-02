@@ -533,6 +533,7 @@
 			drained_hp = surplus * 0.01
 		else // we are over 250MW
 			if(ishuman(victim)) // For humans only
+				drained_hp = surplus * 0.01
 				var/mob/living/carbon/human/Person = victim
 				var/turf/T = get_turf(source)
 
