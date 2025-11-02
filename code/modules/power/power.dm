@@ -505,7 +505,14 @@
 		return FALSE //to avoid spamming with insulated gloves on
 
 	var/drained_hp = 0
-	if(!PN || (PN?.netexcess < 150 MW))
+
+	// PN.netexcess is shoddy, and does not seem to work randomly at some moments.
+	var/surplus = 0
+
+	if(PN)
+		surplus = clamp(PN.avail - PN.load, 0, PN.avail) // copied from /obj/structure/cable/proc/surplus()
+
+	if(!PN || (surplus < 150 MW)) // shocks for non-powernet related things
 		var/PN_damage = 0
 		var/cell_damage = 0
 		if (PN)
@@ -520,17 +527,48 @@
 			power_source = cell
 			shock_damage = cell_damage
 		drained_hp = victim.electrocute_act(shock_damage, source, siemens_coeff) //zzzzzzap!
-	else if(PN && (PN?.netexcess < 250 MW))
-		tesla_zap(victim, 7, PN.netexcess)
-		drained_hp = PN.netexcess * 0.01
-	else
-		playsound(victim.loc, 'sound/magic/lightningbolt.ogg', 100, TRUE, extrarange = 30)
+	else if(PN) // shocks for powernet related things
+		if(surplus < 250 MW) // zaps ya.
+			tesla_zap(victim, 7, surplus)
+			drained_hp = surplus * 0.01
+		else // we are over 250MW
+			if(ishuman(victim)) // For humans only
+				var/mob/living/carbon/human/Person = victim
+				var/turf/T = get_turf(source)
 
-		victim.visible_message(span_danger("\The [victim] starts to glow wildly!"),
-			span_userdanger("Sparks fly in all directions, Electricity courses through you, and as your body stiffens up, your last thought is \"Oh, fuck.\""),
-			span_hear("You hear an unimaginably loud ringing and crackling."))
+				playsound(victim.loc, 'sound/magic/lightningbolt.ogg', 100, TRUE, extrarange = 30)
+				T.Beam(Person, icon_state="lightning[rand(1,12)]", time = 8)
 
-		victim.gib()
+				Person.Paralyze(15)
+				Person.electrocution_animation(15)
+
+				victim.visible_message(span_danger("[victim] starts to glow wildly!"))
+				do_sparks(5, FALSE, victim)
+
+
+				spawn(6)
+					victim.visible_message(
+						span_danger("[Person] glows brightly!!"),
+						span_userdanger("Sparks fly in all directions, Electricity courses through you, and as your body stiffens up, your last thought is \"Oh, fuck.\""),
+						span_hear("You hear an unimaginably loud ringing and crackling."))
+
+
+					// kill, husk, burn
+					Person.death()
+					Person.become_husk(BURN) // ensure the departed is atleast husked
+					Person.apply_damage(surplus * 0.001, BURN, CHEST, 0, TRUE, TRUE) // stack burn scaling with power eaten
+					Person.adjust_fire_stacks(10)
+					Person.ignite_mob()
+
+					// final little shock animation
+					Person.electrocution_animation(30)
+					T.Beam(Person, icon_state="lightning[rand(1,12)]", time = 4)
+					playsound(Person, 'sound/magic/lightningshock.ogg', 50, TRUE, extrarange = 30)
+
+					// small big boom, could make this scale with power in the wires but that might be problematic
+					dyn_explosion(get_turf(victim), 1, 0, 4, TRUE, FALSE, FALSE, TRUE, victim)
+
+
 
 	log_combat(source, victim, "electrocuted")
 
