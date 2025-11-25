@@ -532,42 +532,43 @@
 			tesla_zap(victim, 7, surplus)
 			drained_hp = surplus * 0.01
 		else // we are over 250MW
-			if(ishuman(victim)) // For humans only
-				drained_hp = surplus * 0.01
+			var/obj/item/organ/internal/brain/carbon_brain = victim.get_organ_slot(ORGAN_SLOT_BRAIN)
+			var/turf/turf = get_turf(victim)
+			var/turf/source_turf = get_turf(source)
+			playsound(victim.loc, 'sound/magic/lightningbolt.ogg', 100, TRUE, extrarange = 30)
+			do_sparks(rand(3,6), FALSE, victim)
+
+			source_turf.Beam(victim, icon_state="lightning[rand(1,12)]", time = 15)
+
+			victim.Paralyze(30)
+
+			victim.visible_message(
+				span_danger("[victim] starts glowing wildly, you feel like you should back up!"),
+				span_userdanger("As electricity courses through you and your body contracts, your last thought is \"Oh, fuck\""),
+				)
+
+			if(ishuman(victim)) // for SHOCK value.... ha
 				var/mob/living/carbon/human/Person = victim
-				var/turf/T = get_turf(source)
+				Person.electrocution_animation(30)
 
-				playsound(victim.loc, 'sound/magic/lightningbolt.ogg', 100, TRUE, extrarange = 30)
-				T.Beam(Person, icon_state="lightning[rand(1,12)]", time = 8)
+			drained_hp = PN.netexcess * 0.1
 
-				Person.Paralyze(15)
-				Person.electrocution_animation(15)
+			spawn(15)
+				source_turf.Beam(victim, icon_state="lightning[rand(1,12)]", time = 4)
+				playsound(victim, 'sound/magic/lightningshock.ogg', 50, TRUE, extrarange = 30)
+				victim.death(FALSE, "electrocution")
+				carbon_brain.Remove(victim)
+				carbon_brain.forceMove(turf)
+				victim.visible_message(span_danger("[victim] turns to ash from the electrical shock!"))
+				victim.dust(FALSE, FALSE)
 
-				victim.visible_message(span_danger("[victim] starts to glow wildly!"))
-				do_sparks(5, FALSE, victim)
+				dyn_explosion(turf, 1, 0, 0, TRUE, FALSE, FALSE, FALSE, source)
+
+				// tries to make remains since explosion removes the old stuff
+				if(ishuman(victim))
+					new /obj/effect/decal/remains/human(turf.loc)
 
 
-				spawn(6)
-					victim.visible_message(
-						span_danger("[Person] glows brightly!!"),
-						span_userdanger("Sparks fly in all directions, Electricity courses through you, and as your body stiffens up, your last thought is \"Oh, fuck.\""),
-						span_hear("You hear an unimaginably loud ringing and crackling."))
-
-
-					// kill, husk, burn
-					Person.death()
-					Person.become_husk(BURN) // ensure the departed is atleast husked
-					Person.apply_damage(surplus * 0.001, BURN, CHEST, 0, TRUE, TRUE) // stack burn scaling with power eaten
-					Person.adjust_fire_stacks(10)
-					Person.ignite_mob()
-
-					// final little shock animation
-					Person.electrocution_animation(30)
-					T.Beam(Person, icon_state="lightning[rand(1,12)]", time = 4)
-					playsound(Person, 'sound/magic/lightningshock.ogg', 50, TRUE, extrarange = 30)
-
-					// small big boom, could make this scale with power in the wires but that might be problematic
-					dyn_explosion(get_turf(victim), 1, 0, 4, TRUE, FALSE, FALSE, TRUE, victim)
 
 
 
